@@ -1,0 +1,6 @@
+name: "build"
+version: "0.1.0"
+usage: "build"
+description: |-
+  helm-build allows you to configure jinja2 templates that you can render before using helm to deploy. build can go out and get secrets from s3 for example and insert them into helm templates.
+command: "$HELM_PLUGIN_DIR/helm-build.py"
