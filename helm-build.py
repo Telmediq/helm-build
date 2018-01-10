@@ -3,7 +3,7 @@
 
 import sys
 from keeval.keeval import S3ConfigStore
-from os import getcwd
+import os
 import jinja2
 import fnmatch
 import base64
@@ -159,7 +159,7 @@ if DEBUG is True:
 
 # Get the j2 files in the current directory.
 
-cwd = getcwd()
+cwd = os.getcwd()
 all_discovered_templates = []
 
 for root, dirnames, filenames in os.walk('.','secrets'):
