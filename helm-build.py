@@ -11,6 +11,8 @@ import argparse
 import collections
 import pprint
 import datetime
+import json
+import yaml
 
 
 class ConfigGenerator(object):
@@ -93,17 +95,21 @@ class j2Builder(object):
         sys.stdout.write("Rendering template: " + tpl_path + '\n')
         path, filename = os.path.split(tpl_path)
         j2env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(path)
+            loader=jinja2.FileSystemLoader(path),
+            undefined=jinja2.StrictUndefined
         )
         j2env.filters['base64encode'] = self.base64encode
         return j2env.get_template(filename).render(context)
 
     def write_template(self, template_filename, rendered_template):
         # Remove the j2 extension.
-        helm_secret_file = os.path.splitext(template_filename)[0]
-        # Remove the yaml extension and add .secrets.
-        helm_secret_file = os.path.splitext(helm_secret_file)[0] + '.generated.yaml'
-        f = open(helm_secret_file, 'w')
+        helm_generated_file = os.path.splitext(template_filename)[0]
+        #Values files must be written as values.yaml
+        if 'values.yaml' not in helm_generated_file:
+            helm_generated_file = os.path.splitext(helm_generated_file)[0] + '.generated.yaml'
+        else:
+            helm_generated_file = os.path.splitext(helm_generated_file)[0] + '.yaml'
+        f = open(helm_generated_file, 'w')
         f.write(rendered_template)
         f.close()
 
@@ -112,18 +118,22 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--bucket', help='s3 Bucket Name', nargs=1, required=True)
 parser.add_argument('--deployment', help='deployment name', nargs=1, required=True)
 parser.add_argument('--environment', help='project environment', nargs=1, required=True)
-parser.add_argument('--image', help='image name', nargs=1, required=True)
-parser.add_argument('--imagetag', help='image tag', nargs=1, required=True)
-parser.add_argument('--debug', help='Debug', required=False, action="store_true")
+parser.add_argument('--image', help='image name', nargs=1, required=False)
+parser.add_argument('--imagetag', help='image tag', nargs=1, required=False)
+parser.add_argument("--verbose", help="increase output verbosity", action="store_true")
+
 
 args = parser.parse_args()
-
 keeval_environment = args.environment[0]
 keeval_bucket = args.bucket[0]
 deployment = args.deployment[0]
-image = args.image[0]
-image_tag = args.imagetag[0]
-DEBUG = args.debug
+
+if args.verbose:
+    sys.stderr.write("Debug on.\n")
+    VERBOSE = True
+else:
+    VERBOSE = False
+
 config_path = keeval_environment
 
 
@@ -134,6 +144,8 @@ if 'AWS_PROFILE' in os.environ:
     aws_profile = os.environ['AWS_PROFILE']
 else:
     aws_profile = None
+
+sys.stdout.write("Building config for deployment: " + deployment + "\n")
 
 #Build the dictionary.
 generator = ConfigGenerator(
@@ -149,16 +161,26 @@ data = generator.generate()
 # Add some metadata to the dict.
 data['deployment'] = deployment
 data['environment'] = keeval_environment
-data['image'] = image
-data['imagetag'] = image_tag
 data['generatedtime'] = datetime.datetime.utcnow()
+
+# Process special keys.
+
+# Process services key.
+services_json = data['services']
+services_data = json.loads(services_json)
+data['services'] = services_data['services']
+
+
+if args.image is not None:
+    data['image'] = args.image[0]
+if args.imagetag is not None:
+    data['imagetag'] = args.imagetag[0]
+
 # Loop through templates and render.
-if DEBUG is True:
+if VERBOSE is True:
     pprint.pprint(data)
 
-
 # Get the j2 files in the current directory.
-
 cwd = os.getcwd()
 all_discovered_templates = []
 
