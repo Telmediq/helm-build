@@ -81,8 +81,6 @@ class ConfigGenerator(object):
                 dct[k] = merge_dct[k]
 
 
-
-
 class j2Builder(object):
     def __init__(self, keeval_bucket):
         self.name = 'j2Builder'
@@ -145,7 +143,23 @@ if 'AWS_PROFILE' in os.environ:
 else:
     aws_profile = None
 
+
 sys.stdout.write("Building config for deployment: " + deployment + "\n")
+
+data = {}
+
+#Check for services.json.
+services_path = os.path.join('deployments/', deployment + ".json")
+sys.stdout.write("Looking for deployment services.json file: " + services_path + "\n")
+# Process services key.
+
+if os.path.isfile(services_path):
+    with open(services_path) as f_in:
+        services_data = json.load(f_in)
+    if VERBOSE is True:
+        pprint.pprint(services_data)
+else:
+    sys.stderr.write("Could not find deployment file: " + services_path + "\n")
 
 #Build the dictionary.
 generator = ConfigGenerator(
@@ -158,18 +172,13 @@ generator = ConfigGenerator(
 )
 data = generator.generate()
 
+# Add the services information to the dict. Here because of compatibility with s3 services file.
+data['services'] = services_data['services']
+
 # Add some metadata to the dict.
 data['deployment'] = deployment
 data['environment'] = keeval_environment
 data['generatedtime'] = datetime.datetime.utcnow()
-
-# Process special keys.
-
-# Process services key.
-services_json = data['services']
-services_data = json.loads(services_json)
-data['services'] = services_data['services']
-
 
 if args.image is not None:
     data['image'] = args.image[0]
